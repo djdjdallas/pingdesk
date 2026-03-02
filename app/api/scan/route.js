@@ -93,15 +93,17 @@ export async function POST() {
         return keywordWordSets.some((words) => words.every((w) => text.includes(w)))
       })
 
-      // 4. Deduplicate
-      const uniquePosts = []
+      // 4. Deduplicate, sort newest first, cap at 10 per product to limit Claude calls
+      const deduped = []
       const seenIds = new Set()
       for (const post of filtered) {
         if (!seenIds.has(post.id) && !existingPostIds.has(post.id)) {
           seenIds.add(post.id)
-          uniquePosts.push(post)
+          deduped.push(post)
         }
       }
+      deduped.sort((a, b) => (b.created_utc || 0) - (a.created_utc || 0))
+      const uniquePosts = deduped.slice(0, 10)
 
       // 5. Score and draft replies
       for (const post of uniquePosts) {
