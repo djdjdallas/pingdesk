@@ -4,62 +4,14 @@ import { humanizeText } from "@/lib/humanizer"
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-const REDDIT_USER_AGENT = "PingDesk/1.0 by PingDeskApp"
-
-let cachedToken = null
-let tokenExpiresAt = 0
-
-async function getRedditAccessToken() {
-  if (cachedToken && Date.now() < tokenExpiresAt) {
-    return cachedToken
-  }
-
-  const { REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, REDDIT_USERNAME, REDDIT_PASSWORD } = process.env
-
-  if (!REDDIT_CLIENT_ID || !REDDIT_CLIENT_SECRET || !REDDIT_USERNAME || !REDDIT_PASSWORD) {
-    throw new Error("Missing Reddit OAuth env vars (REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, REDDIT_USERNAME, REDDIT_PASSWORD)")
-  }
-
-  const credentials = Buffer.from(`${REDDIT_CLIENT_ID}:${REDDIT_CLIENT_SECRET}`).toString("base64")
-
-  const response = await fetch("https://www.reddit.com/api/v1/access_token", {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${credentials}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-      "User-Agent": REDDIT_USER_AGENT,
-    },
-    body: new URLSearchParams({
-      grant_type: "password",
-      username: REDDIT_USERNAME,
-      password: REDDIT_PASSWORD,
-    }),
-  })
-
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(`Reddit OAuth failed (${response.status}): ${text}`)
-  }
-
-  const data = await response.json()
-  cachedToken = data.access_token
-  // Expire 60 seconds early to avoid edge cases
-  tokenExpiresAt = Date.now() + (data.expires_in - 60) * 1000
-  return cachedToken
-}
+const REDDIT_USER_AGENT = "PingDesk/1.0 (personal monitoring tool)"
 
 async function fetchReddit(url) {
-  const token = await getRedditAccessToken()
-  const oauthUrl = url.replace("https://www.reddit.com", "https://oauth.reddit.com")
-
-  const response = await fetch(oauthUrl, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "User-Agent": REDDIT_USER_AGENT,
-    },
+  const response = await fetch(url, {
+    headers: { "User-Agent": REDDIT_USER_AGENT },
   })
   if (!response.ok) {
-    console.warn(`Reddit fetch failed (${response.status}): ${oauthUrl}`)
+    console.warn(`Reddit fetch failed (${response.status}): ${url}`)
     return []
   }
   const data = await response.json()
