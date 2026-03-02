@@ -6,7 +6,14 @@ import { LeadCard } from "@/components/lead-card"
 import { Button } from "@/components/ui/button"
 import { Inbox } from "lucide-react"
 
-const STATUS_OPTIONS = ["pending", "approved", "dismissed"]
+const STATUS_OPTIONS = ["pending", "replied", "follow_up_ready", "converted", "dismissed"]
+const STATUS_LABELS = {
+  pending: "Pending",
+  replied: "Replied",
+  follow_up_ready: "Follow-up",
+  converted: "Converted",
+  dismissed: "Dismissed",
+}
 
 export default function LeadQueuePage() {
   return (
@@ -59,8 +66,13 @@ function LeadQueue({ products, selectedProduct, refreshProducts }) {
     return () => window.removeEventListener("scan-complete", handleScanComplete)
   }, [loadLeads])
 
-  function handleStatusChange(leadId) {
-    setLeads((prev) => prev.filter((l) => l.id !== leadId))
+  function handleStatusChange(leadId, newStatus) {
+    if (newStatus === "converted" || newStatus === "dismissed") {
+      setLeads((prev) => prev.filter((l) => l.id !== leadId))
+    } else {
+      // Refresh in place for replied / follow_up_ready transitions
+      loadLeads()
+    }
     refreshProducts()
   }
 
@@ -82,9 +94,8 @@ function LeadQueue({ products, selectedProduct, refreshProducts }) {
               size="sm"
               variant={statusFilter === s ? "default" : "outline"}
               onClick={() => setStatusFilter(s)}
-              className="capitalize"
             >
-              {s}
+              {STATUS_LABELS[s] || s}
             </Button>
           ))}
         </div>

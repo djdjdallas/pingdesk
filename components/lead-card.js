@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Check, Copy, RefreshCw, ThumbsUp, X, ChevronDown, ChevronUp, ExternalLink } from "lucide-react"
+import { Check, Copy, RefreshCw, X, ChevronDown, ChevronUp, ExternalLink, Send, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
@@ -14,11 +14,18 @@ function getScoreColor(score) {
   return "bg-gray-100 text-gray-800 border-gray-200"
 }
 
+function getTouchBadge(touch) {
+  if (touch === 2) return "bg-blue-100 text-blue-800 border-blue-200"
+  return "bg-purple-100 text-purple-800 border-purple-200"
+}
+
 export function LeadCard({ lead, productIndex = 0, onStatusChange }) {
   const [expanded, setExpanded] = useState(false)
   const [showDraft, setShowDraft] = useState(false)
   const [humanizedText, setHumanizedText] = useState(lead.humanized_reply || "")
+  const [followUpText, setFollowUpText] = useState(lead.follow_up_reply || "")
   const [copied, setCopied] = useState(false)
+  const [copiedFollowUp, setCopiedFollowUp] = useState(false)
   const [humanizing, setHumanizing] = useState(false)
 
   async function handleCopy() {
@@ -28,6 +35,18 @@ export function LeadCard({ lead, productIndex = 0, onStatusChange }) {
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
       console.error("Copy failed:", err)
+    }
+  }
+
+  async function handleCopyFollowUp() {
+    try {
+      await navigator.clipboard.writeText(followUpText)
+      setCopiedFollowUp(true)
+      setTimeout(() => setCopiedFollowUp(false), 2000)
+      // Auto-advance to follow_up_ready on copy
+      await patchLead({ status: "follow_up_ready", touch: 2 })
+    } catch (err) {
+      console.error("Copy follow-up failed:", err)
     }
   }
 
@@ -50,22 +69,25 @@ export function LeadCard({ lead, productIndex = 0, onStatusChange }) {
     }
   }
 
-  async function handleStatus(status) {
+  async function patchLead(body) {
     try {
       await fetch(`/api/leads/${lead.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(body),
       })
-      onStatusChange?.(lead.id, status)
+      onStatusChange?.(lead.id, body.status)
     } catch (err) {
-      console.error("Status update failed:", err)
+      console.error("Lead update failed:", err)
     }
   }
 
   const truncatedBody = lead.post_body && lead.post_body.length > 150
     ? lead.post_body.substring(0, 150) + "..."
     : lead.post_body
+
+  const status = lead.status
+  const touch = lead.touch || 1
 
   return (
     <div className="border rounded-lg p-4 bg-card space-y-3">
@@ -84,6 +106,9 @@ export function LeadCard({ lead, productIndex = 0, onStatusChange }) {
         </Badge>
         <Badge className={cn("text-xs", getScoreColor(lead.relevance_score))}>
           {lead.relevance_score}/10
+        </Badge>
+        <Badge className={cn("text-xs", getTouchBadge(touch))}>
+          Touch {touch}
         </Badge>
       </div>
 
@@ -135,56 +160,134 @@ export function LeadCard({ lead, productIndex = 0, onStatusChange }) {
         </div>
       )}
 
-      {/* Humanized reply (editable) */}
-      {humanizedText && (
-        <div>
-          <p className="text-xs text-muted-foreground mb-1">Humanized</p>
-          <Textarea
-            value={humanizedText}
-            onChange={(e) => setHumanizedText(e.target.value)}
-            className="text-sm min-h-[80px]"
-          />
-        </div>
-      )}
+      {/* === PENDING STATE: first touch reply === */}
+      {status === "pending" && (
+        <>
+          {humanizedText && (
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Humanized Reply (Touch 1)</p>
+              <Textarea
+                value={humanizedText}
+                onChange={(e) => setHumanizedText(e.target.value)}
+                className="text-sm min-h-[80px]"
+              />
+            </div>
+          )}
 
-      {/* Action buttons */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {humanizedText && (
-          <>
-            <Button size="sm" variant="outline" onClick={handleCopy}>
-              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-              {copied ? "Copied" : "Copy"}
+          <div className="flex items-center gap-2 flex-wrap">
+            {humanizedText && (
+              <>
+                <Button size="sm" variant="outline" onClick={handleCopy}>
+                  {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copied ? "Copied" : "Copy"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleReHumanize}
+                  disabled={humanizing}
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5", humanizing && "animate-spin")} />
+                  Re-Humanize
+                </Button>
+              </>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-green-700 hover:bg-green-50"
+              onClick={() => patchLead({ status: "replied", touch: 1 })}
+            >
+              <Send className="h-3.5 w-3.5" />
+              Mark as Replied
             </Button>
             <Button
               size="sm"
               variant="outline"
-              onClick={handleReHumanize}
-              disabled={humanizing}
+              className="text-red-700 hover:bg-red-50"
+              onClick={() => patchLead({ status: "dismissed" })}
             >
-              <RefreshCw className={cn("h-3.5 w-3.5", humanizing && "animate-spin")} />
-              Re-Humanize
+              <X className="h-3.5 w-3.5" />
+              Dismiss
             </Button>
-          </>
-        )}
-        <Button
-          size="sm"
-          variant="outline"
-          className="text-green-700 hover:bg-green-50"
-          onClick={() => handleStatus("approved")}
-        >
-          <ThumbsUp className="h-3.5 w-3.5" />
-          Approve
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="text-red-700 hover:bg-red-50"
-          onClick={() => handleStatus("dismissed")}
-        >
-          <X className="h-3.5 w-3.5" />
-          Dismiss
-        </Button>
-      </div>
+          </div>
+        </>
+      )}
+
+      {/* === REPLIED STATE: show follow-up === */}
+      {status === "replied" && (
+        <>
+          {followUpText && (
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Follow-up Reply (Touch 2)</p>
+              <Textarea
+                value={followUpText}
+                onChange={(e) => setFollowUpText(e.target.value)}
+                className="text-sm min-h-[80px]"
+              />
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {followUpText && (
+              <Button size="sm" variant="outline" onClick={handleCopyFollowUp}>
+                {copiedFollowUp ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                {copiedFollowUp ? "Copied" : "Copy Follow-up"}
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-green-700 hover:bg-green-50"
+              onClick={() => patchLead({ status: "converted" })}
+            >
+              <Star className="h-3.5 w-3.5" />
+              Mark Converted
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-red-700 hover:bg-red-50"
+              onClick={() => patchLead({ status: "dismissed" })}
+            >
+              <X className="h-3.5 w-3.5" />
+              Dismiss
+            </Button>
+          </div>
+        </>
+      )}
+
+      {/* === FOLLOW_UP_READY STATE === */}
+      {status === "follow_up_ready" && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge variant="outline" className="text-xs text-blue-700">Follow-up sent</Badge>
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-green-700 hover:bg-green-50"
+            onClick={() => patchLead({ status: "converted" })}
+          >
+            <Star className="h-3.5 w-3.5" />
+            Mark Converted
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-red-700 hover:bg-red-50"
+            onClick={() => patchLead({ status: "dismissed" })}
+          >
+            <X className="h-3.5 w-3.5" />
+            Dismiss
+          </Button>
+        </div>
+      )}
+
+      {/* === CONVERTED / DISMISSED: read-only === */}
+      {(status === "converted" || status === "dismissed") && (
+        <Badge variant="outline" className={cn("text-xs", status === "converted" ? "text-green-700" : "text-red-700")}>
+          {status === "converted" ? "Converted" : "Dismissed"}
+        </Badge>
+      )}
 
       {/* Relevance reason */}
       {lead.relevance_reason && (

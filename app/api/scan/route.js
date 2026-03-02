@@ -140,6 +140,7 @@ Return ONLY a raw JSON object. No markdown, no backticks:
           if (parsed.relevance_score < 6) continue
 
           let humanizedReply = null
+          let followUpReply = null
           let humanizerStatus = "skipped"
 
           if (parsed.should_reply && parsed.drafted_reply) {
@@ -152,6 +153,26 @@ Return ONLY a raw JSON object. No markdown, no backticks:
               humanizedReply = parsed.drafted_reply
               humanizerStatus = "done"
               errors.push(`Humanizer fallback for post ${post.id}: ${err.message}`)
+            }
+
+            // Generate follow-up reply (touch 2)
+            try {
+              const followUpPrompt = `You are drafting a casual follow-up Reddit message. The person engaged with your first reply about their problem. Now lead with a casual product mention.
+
+Product: ${product.name}
+What it does: ${product.description}
+Product URL: ${product.url}
+
+Write a 2-3 sentence follow-up in this format:
+"Hey — forgot to mention, I actually built a tool that handles this automatically — ${product.name}. [one sentence about what it does for their specific problem]. ${product.url} if you want to check it out."
+
+Return ONLY the message text. No quotes, no explanation.`
+
+              const rawFollowUp = await callClaude(followUpPrompt)
+              followUpReply = await humanizeText(rawFollowUp, "reddit", "casual")
+            } catch (err) {
+              console.error("Follow-up generation error:", err.message)
+              errors.push(`Follow-up error for post ${post.id}: ${err.message}`)
             }
           }
 
@@ -169,6 +190,8 @@ Return ONLY a raw JSON object. No markdown, no backticks:
             drafted_reply: parsed.drafted_reply || null,
             humanized_reply: humanizedReply,
             humanizer_status: humanizerStatus,
+            follow_up_reply: followUpReply,
+            touch: 1,
             status: "pending",
           })
 

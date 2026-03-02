@@ -9,6 +9,8 @@ export async function PATCH(request, { params }) {
     const updates = {}
     if (body.status) updates.status = body.status
     if (body.humanized_reply !== undefined) updates.humanized_reply = body.humanized_reply
+    if (body.touch !== undefined) updates.touch = body.touch
+    if (body.follow_up_reply !== undefined) updates.follow_up_reply = body.follow_up_reply
 
     if (Object.keys(updates).length === 0) {
       return Response.json({ error: "No valid fields to update" }, { status: 400 })
