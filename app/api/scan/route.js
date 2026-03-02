@@ -4,14 +4,20 @@ import { humanizeText } from "@/lib/humanizer"
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-const REDDIT_USER_AGENT = "PingDesk/1.0 (personal monitoring tool)"
-
 async function fetchReddit(url) {
-  const response = await fetch(url, {
-    headers: { "User-Agent": REDDIT_USER_AGENT },
+  // Reddit blocks datacenter IPs with minimal headers — use browser-like
+  // headers and old.reddit.com which is less aggressive about blocking.
+  const oldUrl = url.replace("https://www.reddit.com", "https://old.reddit.com")
+  const response = await fetch(oldUrl, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,application/json;q=0.8,*/*;q=0.7",
+      "Accept-Language": "en-US,en;q=0.9",
+    },
   })
   if (!response.ok) {
-    console.warn(`Reddit fetch failed (${response.status}): ${url}`)
+    console.warn(`Reddit fetch failed (${response.status}): ${oldUrl}`)
     return []
   }
   const data = await response.json()
@@ -54,7 +60,7 @@ export async function POST() {
             )
             allPosts.push(...posts)
             scanned += posts.length
-            await sleep(1000)
+            await sleep(2000)
           } catch (err) {
             errors.push(`Keyword search error "${keyword}": ${err.message}`)
           }
@@ -68,7 +74,7 @@ export async function POST() {
             )
             allPosts.push(...posts)
             scanned += posts.length
-            await sleep(1000)
+            await sleep(2000)
           } catch (err) {
             errors.push(`Subreddit fetch error "r/${subreddit}": ${err.message}`)
           }
