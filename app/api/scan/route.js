@@ -56,7 +56,7 @@ export async function POST() {
         for (const keyword of config.keywords || []) {
           try {
             const posts = await fetchReddit(
-              `https://www.reddit.com/search.json?q=${encodeURIComponent(keyword)}&sort=new&limit=25&t=day`
+              `https://www.reddit.com/search.json?q=${encodeURIComponent(keyword)}&sort=new&limit=25&t=week`
             )
             allPosts.push(...posts)
             scanned += posts.length
@@ -81,11 +81,16 @@ export async function POST() {
         }
       }
 
-      // 3. Filter: post title or body must contain at least one keyword
+      // 3. Filter: post must contain all significant words from at least one keyword phrase
+      // e.g. "facebook to ebay" matches if post contains both "facebook" and "ebay"
+      const STOP_WORDS = new Set(["to", "a", "the", "for", "and", "or", "in", "on", "of", "is", "my", "i"])
       const allKeywords = configs.flatMap((c) => c.keywords || [])
+      const keywordWordSets = allKeywords.map((kw) =>
+        kw.toLowerCase().split(/\s+/).filter((w) => !STOP_WORDS.has(w) && w.length > 1)
+      )
       const filtered = allPosts.filter((post) => {
         const text = `${post.title || ""} ${post.selftext || ""}`.toLowerCase()
-        return allKeywords.some((kw) => text.includes(kw.toLowerCase()))
+        return keywordWordSets.some((words) => words.every((w) => text.includes(w)))
       })
 
       // 4. Deduplicate
