@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react"
 import { AppShell } from "@/components/app-shell"
 import { LeadCard } from "@/components/lead-card"
 import { Button } from "@/components/ui/button"
-import { Inbox } from "lucide-react"
+import { Inbox, Download } from "lucide-react"
+import { exportLeadsCsv } from "@/lib/csv"
 
 const STATUS_OPTIONS = ["pending", "replied", "follow_up_ready", "converted", "dismissed"]
 const STATUS_LABELS = {
@@ -76,6 +77,12 @@ function LeadQueue({ products, selectedProduct, refreshProducts }) {
     refreshProducts()
   }
 
+  function handleExport() {
+    const date = new Date().toISOString().slice(0, 10)
+    const filename = `pingdesk-leads-${statusFilter}-${date}.csv`
+    exportLeadsCsv(leads, filename)
+  }
+
   // Build product index map for colors
   const productIndexMap = {}
   products.forEach((p, i) => {
@@ -87,7 +94,7 @@ function LeadQueue({ products, selectedProduct, refreshProducts }) {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold">Lead Queue</h2>
-        <div className="flex gap-1">
+        <div className="flex gap-1 items-center">
           {STATUS_OPTIONS.map((s) => (
             <Button
               key={s}
@@ -98,6 +105,16 @@ function LeadQueue({ products, selectedProduct, refreshProducts }) {
               {STATUS_LABELS[s] || s}
             </Button>
           ))}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleExport}
+            disabled={loading || leads.length === 0}
+            className="ml-2"
+          >
+            <Download className="h-4 w-4 mr-1" />
+            Export CSV
+          </Button>
         </div>
       </div>
 
