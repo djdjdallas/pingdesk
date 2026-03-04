@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Radar, Inbox, PenLine, Loader2 } from "lucide-react"
+import { Radar, Inbox, PenLine, Loader2, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/cn"
@@ -22,6 +22,7 @@ export function Sidebar({ products, selectedProduct, onSelectProduct }) {
   const pathname = usePathname()
   const [scanning, setScanning] = useState(false)
   const [lastScan, setLastScan] = useState(null)
+  const [scanResult, setScanResult] = useState(null)
 
   useEffect(() => {
     const stored = localStorage.getItem("pingdesk_last_scan")
@@ -30,16 +31,22 @@ export function Sidebar({ products, selectedProduct, onSelectProduct }) {
 
   async function runScan() {
     setScanning(true)
+    setScanResult(null)
     try {
       const res = await fetch("/api/scan", { method: "POST" })
       const data = await res.json()
       const now = new Date()
       setLastScan(now)
       localStorage.setItem("pingdesk_last_scan", now.toISOString())
+      setScanResult(data)
+      // Auto-clear the result message after 8 seconds
+      setTimeout(() => setScanResult(null), 8000)
       // Trigger a refresh of leads
       window.dispatchEvent(new CustomEvent("scan-complete", { detail: data }))
     } catch (err) {
       console.error("Scan failed:", err)
+      setScanResult({ error: true })
+      setTimeout(() => setScanResult(null), 8000)
     } finally {
       setScanning(false)
     }
@@ -147,7 +154,18 @@ export function Sidebar({ products, selectedProduct, onSelectProduct }) {
             "Run Scan"
           )}
         </Button>
-        {lastScan && (
+        {scanResult && !scanResult.error && (
+          <p className="text-xs text-green-700 text-center flex items-center justify-center gap-1">
+            <CheckCircle2 className="h-3 w-3" />
+            Found {scanResult.inserted} lead{scanResult.inserted !== 1 ? "s" : ""} ({scanResult.scanned} scanned)
+          </p>
+        )}
+        {scanResult?.error && (
+          <p className="text-xs text-red-600 text-center">
+            Scan failed — try again
+          </p>
+        )}
+        {lastScan && !scanResult && (
           <p className="text-xs text-muted-foreground text-center">
             Last scan: {lastScan.toLocaleTimeString()}
           </p>

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Check, Copy, RefreshCw, X, ChevronDown, ChevronUp, ExternalLink, Send, Star } from "lucide-react"
+import { Check, Copy, RefreshCw, X, ChevronDown, ChevronUp, ExternalLink, Send, Star, Sparkles, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
@@ -27,6 +27,7 @@ export function LeadCard({ lead, productIndex = 0, onStatusChange }) {
   const [copied, setCopied] = useState(false)
   const [copiedFollowUp, setCopiedFollowUp] = useState(false)
   const [humanizing, setHumanizing] = useState(false)
+  const [generating, setGenerating] = useState(false)
 
   async function handleCopy() {
     try {
@@ -66,6 +67,24 @@ export function LeadCard({ lead, productIndex = 0, onStatusChange }) {
       console.error("Re-humanize failed:", err)
     } finally {
       setHumanizing(false)
+    }
+  }
+
+  async function handleGenerateReply() {
+    setGenerating(true)
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/generate`, { method: "POST" })
+      const data = await res.json()
+      if (data.humanized_reply) {
+        setHumanizedText(data.humanized_reply)
+      }
+      if (data.follow_up_reply) {
+        setFollowUpText(data.follow_up_reply)
+      }
+    } catch (err) {
+      console.error("Generate reply failed:", err)
+    } finally {
+      setGenerating(false)
     }
   }
 
@@ -175,6 +194,22 @@ export function LeadCard({ lead, productIndex = 0, onStatusChange }) {
           )}
 
           <div className="flex items-center gap-2 flex-wrap">
+            {!humanizedText && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleGenerateReply}
+                disabled={generating}
+                className="text-purple-700 hover:bg-purple-50"
+              >
+                {generating ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5" />
+                )}
+                {generating ? "Generating..." : "Generate Reply"}
+              </Button>
+            )}
             {humanizedText && (
               <>
                 <Button size="sm" variant="outline" onClick={handleCopy}>
